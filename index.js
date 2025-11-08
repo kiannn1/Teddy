@@ -20,7 +20,7 @@ const helpCommand = require('./commands/help');
 
 const queue = new Map();
 
-client.once('clientReady', () => {
+client.once('ready', () => {
   console.log(`✓ Bot is online as ${client.user.tag}`);
   console.log(`✓ Serving ${client.guilds.cache.size} servers`);
   console.log(`✓ Command prefixes: ${PREFIX.join(', ')}`);
@@ -48,7 +48,7 @@ client.on('messageCreate', async (message) => {
     } else if (moderationCommands[commandName]) {
       await moderationCommands[commandName](message, args);
     } else if (funCommands[commandName]) {
-      await funCommands[commandName](message, args);
+      await funCommands[commandName](message, args, queue, client);
     } else if (commandName === 'help') {
       await helpCommand(message, usedPrefix);
     }
