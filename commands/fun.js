@@ -1,4 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 
 const eightBallResponses = [
   '🎱 It is certain.',
@@ -189,6 +189,96 @@ function memeCommand(message, args) {
   message.channel.send({ embeds: [embed] });
 }
 
+function pingCommand(message, args, queue, client) {
+  const botLatency = Date.now() - message.createdTimestamp;
+  const apiLatency = Math.round(client.ws.ping);
+
+  const embed = new EmbedBuilder()
+    .setColor('#00ff00')
+    .setTitle('🏓 Pong!')
+    .addFields(
+      { name: '⏱️ Bot Latency', value: `${botLatency}ms`, inline: true },
+      { name: '📡 API Latency', value: `${apiLatency}ms`, inline: true }
+    )
+    .setFooter({ text: `Requested by ${message.author.tag}` })
+    .setTimestamp();
+
+  message.channel.send({ embeds: [embed] });
+}
+
+async function sayCommand(message, args) {
+  if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
+    return message.reply('❌ You need the "Manage Messages" permission to use this command!');
+  }
+
+  if (!args.length) {
+    return message.reply(
+      '❌ Please provide a message!\n' +
+      '**Usage:**\n' +
+      '`/say <message>` - Say in current channel\n' +
+      '`/say #channel <message>` - Say in specific channel\n' +
+      '`/say anon <message>` - Say anonymously in current channel\n' +
+      '`/say anon #channel <message>` - Say anonymously in specific channel'
+    );
+  }
+
+  let isAnonymous = false;
+  let targetChannel = message.channel;
+  let messageContent = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    if (arg.toLowerCase() === 'anon' && messageContent.length === 0) {
+      isAnonymous = true;
+    } else if (arg.startsWith('<#') && arg.endsWith('>') && messageContent.length === 0) {
+      const channelId = arg.slice(2, -1);
+      const channel = message.guild.channels.cache.get(channelId);
+      
+      if (!channel) {
+        return message.reply('❌ Invalid channel! Please mention a valid channel.');
+      }
+
+      if (!channel.isTextBased()) {
+        return message.reply('❌ That channel is not a text channel!');
+      }
+
+      if (!channel.permissionsFor(message.guild.members.me).has(PermissionFlagsBits.SendMessages)) {
+        return message.reply('❌ I don\'t have permission to send messages in that channel!');
+      }
+
+      targetChannel = channel;
+    } else {
+      messageContent.push(arg);
+    }
+  }
+
+  const finalMessage = messageContent.join(' ');
+
+  if (!finalMessage) {
+    return message.reply('❌ Please provide a message to say!');
+  }
+
+  try {
+    message.delete().catch(() => {});
+
+    if (isAnonymous) {
+      await targetChannel.send(finalMessage);
+    } else {
+      const embed = new EmbedBuilder()
+        .setColor('#5865F2')
+        .setDescription(finalMessage)
+        .setFooter({ text: `Sent by ${message.author.tag}`, iconURL: message.author.displayAvatarURL() })
+        .setTimestamp();
+
+      await targetChannel.send({ embeds: [embed] });
+    }
+  } catch (error) {
+    console.error(error);
+    message.channel.send('❌ Failed to send the message!').catch(() => {});
+  }
+}
+
 module.exports = {
   '8ball': eightBallCommand,
   dice: diceCommand,
@@ -203,4 +293,6 @@ module.exports = {
   userinfo: userinfoCommand,
   ui: userinfoCommand,
   meme: memeCommand,
+  ping: pingCommand,
+  say: sayCommand,
 };
