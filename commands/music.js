@@ -184,10 +184,6 @@ function skipCommand(message, args, queue) {
     return message.reply('❌ You need to be in the voice channel to skip!');
   }
 
-  if (serverQueue.songs.length <= 1) {
-    return message.reply('❌ No more songs in queue!');
-  }
-
   serverQueue.player.stop();
   message.reply('⏭️ Skipped the song!');
 }
