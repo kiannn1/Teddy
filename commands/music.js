@@ -1,7 +1,6 @@
-
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const play = require('play-dl');
-const spotifyUrlInfo = require('spotify-url-info');
+const { getTrack } = require('spotify-url-info');
 const { EmbedBuilder } = require('discord.js');
 
 const players = new Map();
@@ -17,7 +16,6 @@ async function playCommand(message, args, queue) {
   }
 
   const url = args[0];
-
   if (!url) {
     return message.reply('❌ Please provide a YouTube or Spotify URL!');
   }
@@ -34,38 +32,32 @@ async function playCommand(message, args, queue) {
     let song;
 
     if (isSpotify) {
-      // Handle Spotify URL
-      console.log('Fetching Spotify track info for URL:', url);
-      const getData = spotifyUrlInfo.default;
-      const spotifyData = await getData(url);
-      
-      // Search for the song on YouTube
-      const searchQuery = `${spotifyData.name} ${spotifyData.artists?.map(a => a.name).join(' ') || ''}`;
-      console.log('Searching YouTube for:', searchQuery);
-      
-      const searched = await play.search(searchQuery, { limit: 1 });
-      if (!searched || searched.length === 0) {
-        return message.reply('❌ Could not find this song on YouTube!');
+      // Handle Spotify URL: get metadata and search YouTube for audio
+      try {
+        const spotifyData = await getTrack(url);
+        // Build a YouTube search query using Spotify track info
+        const searchQuery = `${spotifyData.name} ${spotifyData.artists.map(a => a.name).join(' ')}`;
+        const searched = await play.search(searchQuery, { limit: 1 });
+        if (!searched || searched.length === 0) {
+          return message.reply('❌ Could not find this song on YouTube!');
+        }
+        const video = searched[0];
+        song = {
+          title: spotifyData.name,
+          url: video.url,
+          duration: Math.floor(spotifyData.duration_ms / 1000) || 0,
+          requester: message.author.tag,
+          thumbnail: spotifyData.album.images[0]?.url || null,
+        };
+      } catch (err) {
+        return message.reply('❌ Failed to fetch or match a Spotify track!');
       }
-
-      const video = searched[0];
-      song = {
-        title: spotifyData.name,
-        url: video.url,
-        duration: Math.floor(spotifyData.duration_ms / 1000) || 0,
-        requester: message.author.tag,
-        thumbnail: spotifyData.album?.images?.[0]?.url || null,
-      };
     } else {
-      // Handle YouTube URL
-      console.log('Fetching YouTube video info for URL:', url);
-      
-      // Validate the URL with play-dl
+      // Handle YouTube URL: validate and get meta
       const validated = await play.validate(url);
       if (!validated || validated === 'search') {
         return message.reply('❌ Invalid YouTube URL!');
       }
-
       const info = await play.video_info(url);
       song = {
         title: info.video_details.title,
@@ -85,7 +77,6 @@ async function playCommand(message, args, queue) {
         player: createAudioPlayer(),
         playing: true,
       };
-
       queue.set(message.guild.id, queueContruct);
       queueContruct.songs.push(song);
 
@@ -95,27 +86,9 @@ async function playCommand(message, args, queue) {
           guildId: message.guild.id,
           adapterCreator: message.guild.voiceAdapterCreator,
         });
-
         queueContruct.connection = connection;
-        
-        connection.on(VoiceConnectionStatus.Ready, () => {
-          console.log('Voice connection is ready');
-        });
-
-        connection.on(VoiceConnectionStatus.Disconnected, async () => {
-          try {
-            await Promise.race([
-              entersState(connection, VoiceConnectionStatus.Signalling, 5000),
-              entersState(connection, VoiceConnectionStatus.Connecting, 5000),
-            ]);
-          } catch (error) {
-            connection.destroy();
-            queue.delete(message.guild.id);
-          }
-        });
 
         connection.subscribe(queueContruct.player);
-
         queueContruct.player.on(AudioPlayerStatus.Idle, () => {
           queueContruct.songs.shift();
           if (queueContruct.songs.length > 0) {
@@ -125,7 +98,6 @@ async function playCommand(message, args, queue) {
             connection.destroy();
           }
         });
-
         queueContruct.player.on('error', error => {
           console.error('Audio player error:', error);
           queueContruct.songs.shift();
@@ -151,11 +123,8 @@ async function playCommand(message, args, queue) {
           { name: 'Position in Queue', value: `${serverQueue.songs.length}`, inline: true }
         )
         .setFooter({ text: `Requested by ${message.author.tag}` });
-      
-      if (song.thumbnail) {
-        embed.setThumbnail(song.thumbnail);
-      }
-      
+
+      if (song.thumbnail) embed.setThumbnail(song.thumbnail);
       return message.channel.send({ embeds: [embed] });
     }
   } catch (error) {
@@ -163,6 +132,7 @@ async function playCommand(message, args, queue) {
     message.reply('❌ Failed to play the song. Make sure the URL is valid and the content is available!');
   }
 }
+
 
 async function playSong(guild, song, queue) {
   const serverQueue = queue.get(guild.id);
@@ -175,19 +145,18 @@ async function playSong(guild, song, queue) {
   }
 
   try {
-    if (!song.url) {
-      throw new Error('Song URL is undefined');
-    }
-    
-    console.log('Attempting to stream URL:', song.url);
-    const stream = await play.stream(song.url);
+    if (!song.url) throw new Error('Song URL is undefined');
+    // Try to get an audio stream
+    let stream;
+    if (play.is_expired()) await play.refreshToken();
+    stream = await play.stream(song.url);
+
     const resource = createAudioResource(stream.stream, {
       inputType: stream.type,
       inlineVolume: true,
     });
 
     resource.volume.setVolume(0.5);
-
     serverQueue.player.play(resource);
 
     const embed = new EmbedBuilder()
@@ -197,9 +166,7 @@ async function playSong(guild, song, queue) {
       .addFields({ name: 'Duration', value: formatDuration(song.duration), inline: true })
       .setFooter({ text: `Requested by ${song.requester}` });
 
-    if (song.thumbnail) {
-      embed.setThumbnail(song.thumbnail);
-    }
+    if (song.thumbnail) embed.setThumbnail(song.thumbnail);
 
     serverQueue.textChannel.send({ embeds: [embed] });
   } catch (error) {
@@ -209,9 +176,7 @@ async function playSong(guild, song, queue) {
     if (serverQueue.songs.length > 0) {
       playSong(guild, serverQueue.songs[0], queue);
     } else {
-      if (serverQueue.connection) {
-        serverQueue.connection.destroy();
-      }
+      if (serverQueue.connection) serverQueue.connection.destroy();
       queue.delete(guild.id);
     }
   }
@@ -219,77 +184,49 @@ async function playSong(guild, song, queue) {
 
 function pauseCommand(message, args, queue) {
   const serverQueue = queue.get(message.guild.id);
-  if (!serverQueue) {
-    return message.reply('❌ There is nothing playing!');
-  }
-  
-  if (!message.member.voice.channel) {
-    return message.reply('❌ You need to be in the voice channel to pause!');
-  }
-
+  if (!serverQueue) return message.reply('❌ There is nothing playing!');
+  if (!message.member.voice.channel) return message.reply('❌ You need to be in the voice channel to pause!');
   serverQueue.player.pause();
   message.reply('⏸️ Paused the music!');
 }
 
 function resumeCommand(message, args, queue) {
   const serverQueue = queue.get(message.guild.id);
-  if (!serverQueue) {
-    return message.reply('❌ There is nothing playing!');
-  }
-
-  if (!message.member.voice.channel) {
-    return message.reply('❌ You need to be in the voice channel to resume!');
-  }
-
+  if (!serverQueue) return message.reply('❌ There is nothing playing!');
+  if (!message.member.voice.channel) return message.reply('❌ You need to be in the voice channel to resume!');
   serverQueue.player.unpause();
   message.reply('▶️ Resumed the music!');
 }
 
 function stopCommand(message, args, queue) {
   const serverQueue = queue.get(message.guild.id);
-  if (!serverQueue) {
-    return message.reply('❌ There is nothing playing!');
-  }
-
-  if (!message.member.voice.channel) {
-    return message.reply('❌ You need to be in the voice channel to stop!');
-  }
-
+  if (!serverQueue) return message.reply('❌ There is nothing playing!');
+  if (!message.member.voice.channel) return message.reply('❌ You need to be in the voice channel to stop!');
   serverQueue.songs = [];
   serverQueue.player.stop();
-  if (serverQueue.connection) {
-    serverQueue.connection.destroy();
-  }
+  if (serverQueue.connection) serverQueue.connection.destroy();
   queue.delete(message.guild.id);
   message.reply('⏹️ Stopped the music and cleared the queue!');
 }
 
 function skipCommand(message, args, queue) {
   const serverQueue = queue.get(message.guild.id);
-  if (!serverQueue) {
-    return message.reply('❌ There is nothing playing!');
-  }
-
-  if (!message.member.voice.channel) {
-    return message.reply('❌ You need to be in the voice channel to skip!');
-  }
-
+  if (!serverQueue) return message.reply('❌ There is nothing playing!');
+  if (!message.member.voice.channel) return message.reply('❌ You need to be in the voice channel to skip!');
   serverQueue.player.stop();
   message.reply('⏭️ Skipped the song!');
 }
 
 function queueCommand(message, args, queue) {
   const serverQueue = queue.get(message.guild.id);
-  if (!serverQueue || serverQueue.songs.length === 0) {
-    return message.reply('❌ The queue is empty!');
-  }
+  if (!serverQueue || serverQueue.songs.length === 0) return message.reply('❌ The queue is empty!');
 
   const embed = new EmbedBuilder()
     .setColor('#0099ff')
     .setTitle('🎵 Music Queue')
     .setDescription(
       serverQueue.songs
-        .map((song, index) => 
+        .map((song, index) =>
           `${index === 0 ? '**Now Playing:**' : `${index}.`} ${song.title} - \`${formatDuration(song.duration)}\``
         )
         .slice(0, 10)
@@ -306,14 +243,8 @@ function queueCommand(message, args, queue) {
 
 function clearCommand(message, args, queue) {
   const serverQueue = queue.get(message.guild.id);
-  if (!serverQueue) {
-    return message.reply('❌ There is nothing playing!');
-  }
-
-  if (!message.member.voice.channel) {
-    return message.reply('❌ You need to be in the voice channel to clear the queue!');
-  }
-
+  if (!serverQueue) return message.reply('❌ There is nothing playing!');
+  if (!message.member.voice.channel) return message.reply('❌ You need to be in the voice channel to clear the queue!');
   const currentSong = serverQueue.songs[0];
   serverQueue.songs = [currentSong];
   message.reply('🗑️ Cleared the queue! Current song will continue playing.');
@@ -323,10 +254,7 @@ function formatDuration(seconds) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
-  
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
+  if (hours > 0) return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
