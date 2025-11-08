@@ -1,18 +1,25 @@
-# Discord Music & Moderation Bot
+# Discord Music, Moderation & Fun Bot
 
-A Discord bot that provides music playback from YouTube and server moderation features.
+A feature-rich Discord bot that provides music playback from YouTube, comprehensive server moderation tools, and fun interactive commands.
 
 ## Features
 
 ### 🎵 Music Commands
 - Play music from YouTube in voice channels
 - Queue management system
-- Playback controls (pause, resume, skip, stop)
+- Full playback controls (pause, resume, skip, stop)
 
 ### 🛡️ Moderation Commands
-- Kick and ban members
-- Timeout system (mute/unmute)
+- **Member Management**: Kick, ban, timeout members
+- **Warning System**: Track and view member warnings
+- **Message Management**: Bulk delete messages (1-100)
+- **Channel Controls**: Set slowmode, lock/unlock channels
 - Permission-based access control
+
+### 🎮 Fun Commands
+- **Games**: Magic 8-ball, dice rolling, coin flipping
+- **Entertainment**: Random jokes and memes
+- **Information**: User avatars, user info, server statistics
 
 ## Setup Instructions
 
@@ -54,7 +61,6 @@ Examples: `/help` or `!t help`
 | `stop` | Stop playing and clear queue | `/stop` |
 | `skip` | Skip to next song | `/skip` |
 | `queue` | Show current music queue | `/queue` |
-| `clear` | Clear queue (keeps current song) | `/clear` |
 
 ### Moderation Commands
 
@@ -64,8 +70,27 @@ Examples: `/help` or `!t help`
 | `ban @user [reason]` | Ban a member | `/ban @user breaking rules` |
 | `mute @user [duration] [reason]` | Timeout a member | `/mute @user 10m spam` |
 | `unmute @user` | Remove timeout | `/unmute @user` |
+| `warn @user [reason]` | Warn a member | `/warn @user inappropriate language` |
+| `warnings [@user]` | View warnings | `/warnings @user` |
+| `purge <amount>` | Delete messages (1-100) | `/purge 50` |
+| `slowmode <seconds>` | Set slowmode (0-21600) | `/slowmode 5` |
+| `lock` | Lock the channel | `/lock` |
+| `unlock` | Unlock the channel | `/unlock` |
 
 **Duration format:** `10m` (minutes), `2h` (hours), `1d` (days)
+
+### Fun Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `8ball <question>` | Ask the magic 8-ball | `/8ball Will it rain today?` |
+| `dice [sides]` | Roll a dice (default: 6) | `/dice 20` |
+| `coinflip` | Flip a coin | `/coinflip` |
+| `joke` | Get a random joke | `/joke` |
+| `meme` | Get a random meme | `/meme` |
+| `avatar [@user]` | Show user's avatar | `/avatar @user` |
+| `userinfo [@user]` | Show user information | `/userinfo @user` |
+| `serverinfo` | Show server information | `/serverinfo` |
 
 ### Other Commands
 
@@ -79,6 +104,7 @@ Examples: `/help` or `!t help`
 - Moderation commands require appropriate permissions
 - Maximum timeout duration is 28 days
 - The bot will automatically leave the voice channel when the queue is empty
+- Warnings are stored in memory (reset on bot restart)
 
 ## Permissions Required
 
@@ -89,7 +115,9 @@ Examples: `/help` or `!t help`
 ### For Moderation:
 - Kick Members (for kick command)
 - Ban Members (for ban command)
-- Moderate Members (for mute/unmute commands)
+- Moderate Members (for mute/unmute/warn commands)
+- Manage Messages (for purge command)
+- Manage Channels (for slowmode/lock/unlock commands)
 
 ## Technical Details
 
@@ -98,7 +126,8 @@ Built with:
 - @discordjs/voice for audio streaming
 - play-dl for YouTube integration
 - Node.js 20
+- PostgreSQL database (available for future features)
 
 ## Support
 
-The bot is currently running and connected to Discord. All commands use rich embeds for better user experience and include error handling for edge cases.
+The bot uses rich embeds for better user experience and includes comprehensive error handling for all commands.
