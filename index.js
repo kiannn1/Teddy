@@ -136,7 +136,8 @@ client.on('interactionCreate', async (interaction) => {
     if (musicCommands[commandName]) {
       await musicCommands[commandName](fakeMessage, args, queue, client);
     } else if (moderationCommands[commandName]) {
-      await moderationCommands[commandName](fakeMessage, args);
+      // IMPORTANT CHANGE: pass interaction as third arg!
+      await moderationCommands[commandName](fakeMessage, args, interaction);
     } else if (funCommands[commandName]) {
       await funCommands[commandName](fakeMessage, args, queue, client);
     } else if (commandName === 'help') {
