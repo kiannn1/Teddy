@@ -281,7 +281,7 @@ function purgeCommand(message, args, interaction) {
     });
 }
 
-function slowmodeCommand(message, args) {
+function slowmodeCommand(message, args, interaction) {
   if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
     return message.reply("❌ You don't have permission to manage channels!");
   }
@@ -292,7 +292,13 @@ function slowmodeCommand(message, args) {
   if (isNaN(seconds) || seconds < 0 || seconds > 21600) {
     return message.reply('❌ Please provide a number between 0 and 21600 seconds (6 hours)! Example: `/slowmode 5`');
   }
-  message.channel.setRateLimitPerUser(seconds)
+
+  // Use the real Discord.js channel from interaction (not fakeMessage.channel)
+  const realChannel = interaction.channel;
+  if (!realChannel || typeof realChannel.setRateLimitPerUser !== "function") {
+    return message.reply('❌ Unable to set slowmode in this channel!');
+  }
+  realChannel.setRateLimitPerUser(seconds)
     .then(() => {
       const embed = new EmbedBuilder()
         .setColor('#00aaff')
@@ -302,7 +308,7 @@ function slowmodeCommand(message, args) {
           : `✅ Slowmode set to **${seconds}** seconds!`)
         .setFooter({ text: `Set by ${message.author.tag}` })
         .setTimestamp();
-      message.channel.send({ embeds: [embed] });
+      realChannel.send({ embeds: [embed] });
     })
     .catch((error) => {
       console.error(error);
