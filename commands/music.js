@@ -1,3 +1,4 @@
+
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const play = require('play-dl');
 const { EmbedBuilder } = require('discord.js');
@@ -23,12 +24,6 @@ async function playCommand(message, args, queue) {
   try {
     const serverQueue = queue.get(message.guild.id);
     
-    await play.setToken({
-      youtube: {
-        cookie: process.env.YOUTUBE_COOKIE || ''
-      }
-    });
-
     const info = await play.video_info(url);
     const song = {
       title: info.video_details.title,
@@ -58,6 +53,23 @@ async function playCommand(message, args, queue) {
         });
 
         queueContruct.connection = connection;
+        
+        connection.on(VoiceConnectionStatus.Ready, () => {
+          console.log('Voice connection is ready');
+        });
+
+        connection.on(VoiceConnectionStatus.Disconnected, async () => {
+          try {
+            await Promise.race([
+              entersState(connection, VoiceConnectionStatus.Signalling, 5000),
+              entersState(connection, VoiceConnectionStatus.Connecting, 5000),
+            ]);
+          } catch (error) {
+            connection.destroy();
+            queue.delete(message.guild.id);
+          }
+        });
+
         connection.subscribe(queueContruct.player);
 
         queueContruct.player.on(AudioPlayerStatus.Idle, () => {
@@ -70,11 +82,19 @@ async function playCommand(message, args, queue) {
           }
         });
 
+        queueContruct.player.on('error', error => {
+          console.error('Audio player error:', error);
+          queueContruct.songs.shift();
+          if (queueContruct.songs.length > 0) {
+            playSong(message.guild, queueContruct.songs[0], queue);
+          }
+        });
+
         await playSong(message.guild, queueContruct.songs[0], queue);
       } catch (err) {
         console.error(err);
         queue.delete(message.guild.id);
-        return message.reply('❌ Failed to join voice channel!');
+        return message.reply('❌ Failed to join voice channel or play music!');
       }
     } else {
       serverQueue.songs.push(song);
@@ -90,15 +110,17 @@ async function playCommand(message, args, queue) {
       return message.channel.send({ embeds: [embed] });
     }
   } catch (error) {
-    console.error(error);
-    message.reply('❌ Failed to play the song. Make sure the URL is valid!');
+    console.error('Play command error:', error);
+    message.reply('❌ Failed to play the song. Make sure the URL is valid and the video is available!');
   }
 }
 
 async function playSong(guild, song, queue) {
   const serverQueue = queue.get(guild.id);
   if (!song) {
-    serverQueue.connection.destroy();
+    if (serverQueue && serverQueue.connection) {
+      serverQueue.connection.destroy();
+    }
     queue.delete(guild.id);
     return;
   }
@@ -107,7 +129,10 @@ async function playSong(guild, song, queue) {
     const stream = await play.stream(song.url);
     const resource = createAudioResource(stream.stream, {
       inputType: stream.type,
+      inlineVolume: true,
     });
+
+    resource.volume.setVolume(0.5);
 
     serverQueue.player.play(resource);
 
@@ -120,11 +145,16 @@ async function playSong(guild, song, queue) {
 
     serverQueue.textChannel.send({ embeds: [embed] });
   } catch (error) {
-    console.error(error);
-    serverQueue.textChannel.send('❌ Error playing the song!');
+    console.error('Play song error:', error);
+    serverQueue.textChannel.send('❌ Error playing the song! Skipping to next...');
     serverQueue.songs.shift();
     if (serverQueue.songs.length > 0) {
       playSong(guild, serverQueue.songs[0], queue);
+    } else {
+      if (serverQueue.connection) {
+        serverQueue.connection.destroy();
+      }
+      queue.delete(guild.id);
     }
   }
 }
@@ -169,7 +199,9 @@ function stopCommand(message, args, queue) {
 
   serverQueue.songs = [];
   serverQueue.player.stop();
-  serverQueue.connection.destroy();
+  if (serverQueue.connection) {
+    serverQueue.connection.destroy();
+  }
   queue.delete(message.guild.id);
   message.reply('⏹️ Stopped the music and cleared the queue!');
 }
