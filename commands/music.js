@@ -10,32 +10,24 @@ async function playCommand(message, args, queue) {
   if (!voiceChannel) {
     return message.reply('❌ You need to be in a voice channel to play music!');
   }
-
   if (!args.length) {
     return message.reply('❌ Please provide a YouTube or Spotify URL! Example: `/play https://youtube.com/watch?v=...` or `/play https://open.spotify.com/track/...`');
   }
-
   const url = args[0];
   if (!url) {
     return message.reply('❌ Please provide a YouTube or Spotify URL!');
   }
-
   const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
   const isSpotify = url.includes('spotify.com');
-
   if (!isYouTube && !isSpotify) {
     return message.reply('❌ Please provide a valid YouTube or Spotify URL!');
   }
-
   try {
     const serverQueue = queue.get(message.guild.id);
     let song;
-
     if (isSpotify) {
-      // Handle Spotify URL: get metadata and search YouTube for audio
       try {
         const spotifyData = await getTrack(url);
-        // Build a YouTube search query using Spotify track info
         const searchQuery = `${spotifyData.name} ${spotifyData.artists.map(a => a.name).join(' ')}`;
         const searched = await play.search(searchQuery, { limit: 1 });
         if (!searched || searched.length === 0) {
@@ -53,7 +45,6 @@ async function playCommand(message, args, queue) {
         return message.reply('❌ Failed to fetch or match a Spotify track!');
       }
     } else {
-      // Handle YouTube URL: validate and get meta
       const validated = await play.validate(url);
       if (!validated || validated === 'search') {
         return message.reply('❌ Invalid YouTube URL!');
@@ -67,7 +58,6 @@ async function playCommand(message, args, queue) {
         thumbnail: info.video_details.thumbnails?.[0]?.url || null,
       };
     }
-
     if (!serverQueue) {
       const queueContruct = {
         textChannel: message.channel,
@@ -123,7 +113,6 @@ async function playCommand(message, args, queue) {
           { name: 'Position in Queue', value: `${serverQueue.songs.length}`, inline: true }
         )
         .setFooter({ text: `Requested by ${message.author.tag}` });
-
       if (song.thumbnail) embed.setThumbnail(song.thumbnail);
       return message.channel.send({ embeds: [embed] });
     }
@@ -132,7 +121,6 @@ async function playCommand(message, args, queue) {
     message.reply('❌ Failed to play the song. Make sure the URL is valid and the content is available!');
   }
 }
-
 
 async function playSong(guild, song, queue) {
   const serverQueue = queue.get(guild.id);
@@ -143,10 +131,11 @@ async function playSong(guild, song, queue) {
     queue.delete(guild.id);
     return;
   }
-
   try {
-    if (!song.url) throw new Error('Song URL is undefined');
-    // Try to get an audio stream
+    // Robust error handling for invalid url
+    if (!song.url || typeof song.url !== "string" || !/^https?:\/\//.test(song.url)) {
+      throw new Error('Song URL is undefined or invalid');
+    }
     let stream;
     if (play.is_expired()) await play.refreshToken();
     stream = await play.stream(song.url);
@@ -165,7 +154,6 @@ async function playSong(guild, song, queue) {
       .setDescription(`**${song.title}**`)
       .addFields({ name: 'Duration', value: formatDuration(song.duration), inline: true })
       .setFooter({ text: `Requested by ${song.requester}` });
-
     if (song.thumbnail) embed.setThumbnail(song.thumbnail);
 
     serverQueue.textChannel.send({ embeds: [embed] });
@@ -220,7 +208,6 @@ function skipCommand(message, args, queue) {
 function queueCommand(message, args, queue) {
   const serverQueue = queue.get(message.guild.id);
   if (!serverQueue || serverQueue.songs.length === 0) return message.reply('❌ The queue is empty!');
-
   const embed = new EmbedBuilder()
     .setColor('#0099ff')
     .setTitle('🎵 Music Queue')
@@ -233,11 +220,9 @@ function queueCommand(message, args, queue) {
         .join('\n')
     )
     .setFooter({ text: `${serverQueue.songs.length} song(s) in queue` });
-
   if (serverQueue.songs.length > 10) {
     embed.addFields({ name: 'Note', value: `... and ${serverQueue.songs.length - 10} more song(s)` });
   }
-
   message.channel.send({ embeds: [embed] });
 }
 
