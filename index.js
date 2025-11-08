@@ -83,7 +83,10 @@ client.on('interactionCreate', async (interaction) => {
   const fakeMessage = {
     member: interaction.member,
     guild: interaction.guild,
-    channel: interaction.channel,
+    channel: {
+      ...interaction.channel,
+      send: (content) => interaction.reply(content),
+    },
     author: interaction.user,
     reply: (content) => interaction.reply(content),
     mentions: {
