@@ -215,10 +215,9 @@ async function sayCommand(message, args) {
     return message.reply(
       '❌ Please provide a message!\n' +
       '**Usage:**\n' +
-      '`/say <message>` - Say in current channel\n' +
-      '`/say #channel <message>` - Say in specific channel\n' +
-      '`/say anon <message>` - Say anonymously in current channel\n' +
-      '`/say anon #channel <message>` - Say anonymously in specific channel'
+      '`/say message:<text>` - Say in current channel\n' +
+      '`/say message:<text> channel:#channel` - Say in specific channel\n' +
+      '`/say message:<text> anonymous:True` - Say anonymously'
     );
   }
 
@@ -229,9 +228,9 @@ async function sayCommand(message, args) {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
 
-    if (arg.toLowerCase() === 'anon' && messageContent.length === 0) {
+    if (arg.toLowerCase() === 'anon') {
       isAnonymous = true;
-    } else if (arg.startsWith('<#') && arg.endsWith('>') && messageContent.length === 0) {
+    } else if (arg.startsWith('<#') && arg.endsWith('>')) {
       const channelId = arg.slice(2, -1);
       const channel = message.guild.channels.cache.get(channelId);
       
@@ -260,10 +259,9 @@ async function sayCommand(message, args) {
   }
 
   try {
-    message.delete().catch(() => {});
-
     if (isAnonymous) {
       await targetChannel.send(finalMessage);
+      await message.reply({ content: '✅ Message sent anonymously!', ephemeral: true });
     } else {
       const embed = new EmbedBuilder()
         .setColor('#5865F2')
@@ -272,10 +270,14 @@ async function sayCommand(message, args) {
         .setTimestamp();
 
       await targetChannel.send({ embeds: [embed] });
+      
+      if (targetChannel.id !== message.channel.id) {
+        await message.reply({ content: `✅ Message sent to ${targetChannel}!`, ephemeral: true });
+      }
     }
   } catch (error) {
     console.error(error);
-    message.channel.send('❌ Failed to send the message!').catch(() => {});
+    return message.reply('❌ Failed to send the message!');
   }
 }
 

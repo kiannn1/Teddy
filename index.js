@@ -52,6 +52,12 @@ const commands = [
   { name: 'avatar', description: 'Show user avatar', options: [{ name: 'user', description: 'User to show avatar', type: 6 }] },
   { name: 'userinfo', description: 'Show user information', options: [{ name: 'user', description: 'User to show info', type: 6 }] },
   { name: 'serverinfo', description: 'Show server information' },
+  { name: 'ping', description: 'Check bot latency' },
+  { name: 'say', description: 'Make the bot say something', options: [
+    { name: 'message', description: 'The message to send', type: 3, required: true },
+    { name: 'channel', description: 'Channel to send in (optional)', type: 7 },
+    { name: 'anonymous', description: 'Send anonymously', type: 5 }
+  ]},
   { name: 'help', description: 'Show all available commands' },
 ];
 
@@ -108,6 +114,12 @@ client.on('interactionCreate', async (interaction) => {
   if (interaction.options.get('amount')) args.push(interaction.options.get('amount').value.toString());
   if (interaction.options.get('sides')) args.push(interaction.options.get('sides').value.toString());
   if (interaction.options.get('question')) args.push(interaction.options.get('question').value);
+  if (interaction.options.get('message')) args.push(interaction.options.get('message').value);
+  if (interaction.options.get('anonymous')) args.unshift('anon');
+  if (interaction.options.get('channel')) {
+    const channel = interaction.options.getChannel('channel');
+    args.unshift(`<#${channel.id}>`);
+  }
 
   try {
     if (musicCommands[commandName]) {

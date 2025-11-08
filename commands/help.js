@@ -44,7 +44,8 @@ function helpCommand(message, prefix) {
           '`/avatar [user]` - Show user\'s avatar\n' +
           '`/userinfo [user]` - Show user info\n' +
           '`/serverinfo` - Show server info\n' +
-          '`/ping` - Check bot latency',
+          '`/ping` - Check bot latency\n' +
+          '`/say <message> [channel] [anonymous]` - Make the bot say something',
         inline: false
       },
       {
