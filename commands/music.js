@@ -1,6 +1,7 @@
 
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const play = require('play-dl');
+const { getData } = require('spotify-url-info');
 const { EmbedBuilder } = require('discord.js');
 
 const players = new Map();
@@ -12,30 +13,67 @@ async function playCommand(message, args, queue) {
   }
 
   if (!args.length) {
-    return message.reply('❌ Please provide a YouTube URL! Example: `/play https://youtube.com/watch?v=...`');
+    return message.reply('❌ Please provide a YouTube or Spotify URL! Example: `/play https://youtube.com/watch?v=...` or `/play https://open.spotify.com/track/...`');
   }
 
   const url = args[0];
 
   if (!url) {
-    return message.reply('❌ Please provide a YouTube URL! Example: `/play https://youtube.com/watch?v=...`');
+    return message.reply('❌ Please provide a YouTube or Spotify URL!');
   }
 
-  if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
-    return message.reply('❌ Please provide a valid YouTube URL!');
+  const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
+  const isSpotify = url.includes('spotify.com');
+
+  if (!isYouTube && !isSpotify) {
+    return message.reply('❌ Please provide a valid YouTube or Spotify URL!');
   }
 
   try {
     const serverQueue = queue.get(message.guild.id);
-    
-    console.log('Fetching video info for URL:', url);
-    const info = await play.video_info(url);
-    const song = {
-      title: info.video_details.title,
-      url: url,
-      duration: info.video_details.durationInSec,
-      requester: message.author.tag,
-    };
+    let song;
+
+    if (isSpotify) {
+      // Handle Spotify URL
+      console.log('Fetching Spotify track info for URL:', url);
+      const spotifyData = await getData(url);
+      
+      // Search for the song on YouTube
+      const searchQuery = `${spotifyData.name} ${spotifyData.artists?.map(a => a.name).join(' ') || ''}`;
+      console.log('Searching YouTube for:', searchQuery);
+      
+      const searched = await play.search(searchQuery, { limit: 1 });
+      if (!searched || searched.length === 0) {
+        return message.reply('❌ Could not find this song on YouTube!');
+      }
+
+      const video = searched[0];
+      song = {
+        title: spotifyData.name,
+        url: video.url,
+        duration: Math.floor(spotifyData.duration / 1000) || 0,
+        requester: message.author.tag,
+        thumbnail: spotifyData.coverArt?.sources?.[0]?.url || null,
+      };
+    } else {
+      // Handle YouTube URL
+      console.log('Fetching YouTube video info for URL:', url);
+      
+      // Validate the URL with play-dl
+      const validated = await play.validate(url);
+      if (!validated || validated === 'search') {
+        return message.reply('❌ Invalid YouTube URL!');
+      }
+
+      const info = await play.video_info(url);
+      song = {
+        title: info.video_details.title,
+        url: info.video_details.url,
+        duration: info.video_details.durationInSec,
+        requester: message.author.tag,
+        thumbnail: info.video_details.thumbnails?.[0]?.url || null,
+      };
+    }
 
     if (!serverQueue) {
       const queueContruct = {
@@ -112,11 +150,16 @@ async function playCommand(message, args, queue) {
           { name: 'Position in Queue', value: `${serverQueue.songs.length}`, inline: true }
         )
         .setFooter({ text: `Requested by ${message.author.tag}` });
+      
+      if (song.thumbnail) {
+        embed.setThumbnail(song.thumbnail);
+      }
+      
       return message.channel.send({ embeds: [embed] });
     }
   } catch (error) {
     console.error('Play command error:', error);
-    message.reply('❌ Failed to play the song. Make sure the URL is valid and the video is available!');
+    message.reply('❌ Failed to play the song. Make sure the URL is valid and the content is available!');
   }
 }
 
@@ -152,6 +195,10 @@ async function playSong(guild, song, queue) {
       .setDescription(`**${song.title}**`)
       .addFields({ name: 'Duration', value: formatDuration(song.duration), inline: true })
       .setFooter({ text: `Requested by ${song.requester}` });
+
+    if (song.thumbnail) {
+      embed.setThumbnail(song.thumbnail);
+    }
 
     serverQueue.textChannel.send({ embeds: [embed] });
   } catch (error) {
