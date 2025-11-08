@@ -19,7 +19,7 @@ const helpCommand = require('./commands/help');
 
 const queue = new Map();
 
-client.once('ready', () => {
+client.once('clientReady', () => {
   console.log(`✓ Bot is online as ${client.user.tag}`);
   console.log(`✓ Serving ${client.guilds.cache.size} servers`);
   console.log(`✓ Command prefixes: ${PREFIX.join(', ')}`);
