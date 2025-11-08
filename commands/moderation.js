@@ -2,6 +2,23 @@ const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 
 const warnings = new Map();
 
+function getRealChannel(message, interaction) {
+  // Use the actual TextChannel from the interaction context
+  // If you're not passing interaction, fall back to message.channel (if it's a true TextChannel)
+  if (interaction && interaction.channel && typeof interaction.channel.bulkDelete === "function") {
+    return interaction.channel;
+  }
+  if (message.channel && typeof message.channel.bulkDelete === "function") {
+    return message.channel;
+  }
+  // Last resort: try to get by ID (guild.channels.cache.get)
+  if (message.guild && message.channel && message.channel.id) {
+    const found = message.guild.channels.cache.get(message.channel.id);
+    if (found && typeof found.bulkDelete === "function") return found;
+  }
+  return null;
+}
+
 function kickCommand(message, args) {
   const member = Array.from(message.mentions?.members?.values() || [])[0];
   if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
@@ -231,7 +248,7 @@ function warningsCommand(message, args) {
   message.channel.send({ embeds: [embed] });
 }
 
-function purgeCommand(message, args) {
+function purgeCommand(message, args, interaction) {
   if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
     return message.reply("❌ You don't have permission to manage messages!");
   }
@@ -242,7 +259,11 @@ function purgeCommand(message, args) {
   if (isNaN(amount) || amount < 1 || amount > 100) {
     return message.reply('❌ Please provide a number between 1 and 100! Example: `/purge 10`');
   }
-  message.channel.bulkDelete(amount + 1, true)
+  const realChannel = getRealChannel(message, interaction);
+  if (!realChannel || typeof realChannel.bulkDelete !== "function") {
+    return message.reply('❌ I cannot delete messages in this channel!');
+  }
+  realChannel.bulkDelete(amount + 1, true)
     .then(messages => {
       const embed = new EmbedBuilder()
         .setColor('#00ff00')
@@ -250,7 +271,7 @@ function purgeCommand(message, args) {
         .setDescription(`Successfully deleted **${messages.size - 1}** messages!`)
         .setFooter({ text: `Deleted by ${message.author.tag}` })
         .setTimestamp();
-      message.channel.send({ embeds: [embed] }).then(msg => {
+      realChannel.send({ embeds: [embed] }).then(msg => {
         setTimeout(() => msg.delete().catch(() => {}), 3000);
       });
     })
