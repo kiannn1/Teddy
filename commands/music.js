@@ -27,7 +27,7 @@ async function playCommand(message, args, queue) {
     const info = await play.video_info(url);
     const song = {
       title: info.video_details.title,
-      url: info.video_details.url,
+      url: url,
       duration: info.video_details.durationInSec,
       requester: message.author.tag,
     };
