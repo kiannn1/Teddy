@@ -1,431 +1,191 @@
-const { PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-
-const warnings = new Map();
-
-function kickCommand(message, args) {
-  if (!message.member.permissions.has(PermissionFlagsBits.KickMembers)) {
-    return message.reply('❌ You don\'t have permission to kick members!');
-  }
-
-  if (!message.guild.members.me.permissions.has(PermissionFlagsBits.KickMembers)) {
-    return message.reply('❌ I don\'t have permission to kick members!');
-  }
-
-  const member = message.mentions.members.first();
-  if (!member) {
-    return message.reply('❌ Please mention a user to kick! Example: `/kick @user reason`');
-  }
-
-  if (member.id === message.author.id) {
-    return message.reply('❌ You cannot kick yourself!');
-  }
-
-  if (member.id === message.guild.ownerId) {
-    return message.reply('❌ You cannot kick the server owner!');
-  }
-
-  if (!member.kickable) {
-    return message.reply('❌ I cannot kick this user! They may have higher roles than me.');
-  }
-
-  const reason = args.slice(1).join(' ') || 'No reason provided';
-
-  member
-    .kick(reason)
-    .then(() => {
-      const embed = new EmbedBuilder()
-        .setColor('#ff0000')
-        .setTitle('👢 Member Kicked')
-        .addFields(
-          { name: 'User', value: `${member.user.tag}`, inline: true },
-          { name: 'Kicked by', value: `${message.author.tag}`, inline: true },
-          { name: 'Reason', value: reason }
-        )
-        .setTimestamp();
-      message.channel.send({ embeds: [embed] });
-    })
-    .catch((error) => {
-      console.error(error);
-      message.reply('❌ Failed to kick the member!');
-    });
-}
-
-function banCommand(message, args) {
-  if (!message.member.permissions.has(PermissionFlagsBits.BanMembers)) {
-    return message.reply('❌ You don\'t have permission to ban members!');
-  }
-
-  if (!message.guild.members.me.permissions.has(PermissionFlagsBits.BanMembers)) {
-    return message.reply('❌ I don\'t have permission to ban members!');
-  }
-
-  const member = message.mentions.members.first();
-  if (!member) {
-    return message.reply('❌ Please mention a user to ban! Example: `/ban @user reason`');
-  }
-
-  if (member.id === message.author.id) {
-    return message.reply('❌ You cannot ban yourself!');
-  }
-
-  if (member.id === message.guild.ownerId) {
-    return message.reply('❌ You cannot ban the server owner!');
-  }
-
-  if (!member.bannable) {
-    return message.reply('❌ I cannot ban this user! They may have higher roles than me.');
-  }
-
-  const reason = args.slice(1).join(' ') || 'No reason provided';
-
-  member
-    .ban({ reason })
-    .then(() => {
-      const embed = new EmbedBuilder()
-        .setColor('#ff0000')
-        .setTitle('🔨 Member Banned')
-        .addFields(
-          { name: 'User', value: `${member.user.tag}`, inline: true },
-          { name: 'Banned by', value: `${message.author.tag}`, inline: true },
-          { name: 'Reason', value: reason }
-        )
-        .setTimestamp();
-      message.channel.send({ embeds: [embed] });
-    })
-    .catch((error) => {
-      console.error(error);
-      message.reply('❌ Failed to ban the member!');
-    });
-}
-
-function muteCommand(message, args) {
-  if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-    return message.reply('❌ You don\'t have permission to mute members!');
-  }
-
-  if (!message.guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-    return message.reply('❌ I don\'t have permission to mute members!');
-  }
-
-  const member = message.mentions.members.first();
-  if (!member) {
-    return message.reply('❌ Please mention a user to mute! Example: `/mute @user 10m reason`');
-  }
-
-  if (member.id === message.author.id) {
-    return message.reply('❌ You cannot mute yourself!');
-  }
-
-  if (member.id === message.guild.ownerId) {
-    return message.reply('❌ You cannot mute the server owner!');
-  }
-
-  const timeArg = args[1];
-  let duration = 600000;
-
-  if (timeArg) {
-    const timeMatch = timeArg.match(/^(\d+)([mhd])$/);
-    if (timeMatch) {
-      const value = parseInt(timeMatch[1]);
-      const unit = timeMatch[2];
-      
-      switch (unit) {
-        case 'm':
-          duration = value * 60 * 1000;
-          break;
-        case 'h':
-          duration = value * 60 * 60 * 1000;
-          break;
-        case 'd':
-          duration = value * 24 * 60 * 60 * 1000;
-          break;
-      }
-    }
-  }
-
-  if (duration > 2419200000) {
-    return message.reply('❌ Timeout duration cannot exceed 28 days!');
-  }
-
-  const reason = args.slice(2).join(' ') || 'No reason provided';
-
-  member
-    .timeout(duration, reason)
-    .then(() => {
-      const embed = new EmbedBuilder()
-        .setColor('#ffaa00')
-        .setTitle('🔇 Member Muted')
-        .addFields(
-          { name: 'User', value: `${member.user.tag}`, inline: true },
-          { name: 'Muted by', value: `${message.author.tag}`, inline: true },
-          { name: 'Duration', value: formatDuration(duration), inline: true },
-          { name: 'Reason', value: reason }
-        )
-        .setTimestamp();
-      message.channel.send({ embeds: [embed] });
-    })
-    .catch((error) => {
-      console.error(error);
-      message.reply('❌ Failed to mute the member!');
-    });
-}
-
-function unmuteCommand(message, args) {
-  if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-    return message.reply('❌ You don\'t have permission to unmute members!');
-  }
-
-  if (!message.guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-    return message.reply('❌ I don\'t have permission to unmute members!');
-  }
-
-  const member = message.mentions.members.first();
-  if (!member) {
-    return message.reply('❌ Please mention a user to unmute! Example: `/unmute @user`');
-  }
-
-  member
-    .timeout(null)
-    .then(() => {
-      const embed = new EmbedBuilder()
-        .setColor('#00ff00')
-        .setTitle('🔊 Member Unmuted')
-        .addFields(
-          { name: 'User', value: `${member.user.tag}`, inline: true },
-          { name: 'Unmuted by', value: `${message.author.tag}`, inline: true }
-        )
-        .setTimestamp();
-      message.channel.send({ embeds: [embed] });
-    })
-    .catch((error) => {
-      console.error(error);
-      message.reply('❌ Failed to unmute the member!');
-    });
-}
-
-function warnCommand(message, args) {
-  if (!message.member.permissions.has(PermissionFlagsBits.ModerateMembers)) {
-    return message.reply('❌ You don\'t have permission to warn members!');
-  }
-
-  const member = message.mentions.members.first();
-  if (!member) {
-    return message.reply('❌ Please mention a user to warn! Example: `/warn @user reason`');
-  }
-
-  if (member.id === message.author.id) {
-    return message.reply('❌ You cannot warn yourself!');
-  }
-
-  if (member.id === message.guild.ownerId) {
-    return message.reply('❌ You cannot warn the server owner!');
-  }
-
-  const reason = args.slice(1).join(' ') || 'No reason provided';
-  const guildId = message.guild.id;
-  const userId = member.id;
-  const key = `${guildId}-${userId}`;
-
-  if (!warnings.has(key)) {
-    warnings.set(key, []);
-  }
-
-  const userWarnings = warnings.get(key);
-  const warning = {
-    id: userWarnings.length + 1,
-    reason,
-    moderator: message.author.tag,
-    timestamp: Date.now(),
-  };
-
-  userWarnings.push(warning);
-
-  const embed = new EmbedBuilder()
-    .setColor('#ff9900')
-    .setTitle('⚠️ Member Warned')
-    .addFields(
-      { name: 'User', value: `${member.user.tag}`, inline: true },
-      { name: 'Warned by', value: `${message.author.tag}`, inline: true },
-      { name: 'Total Warnings', value: `${userWarnings.length}`, inline: true },
-      { name: 'Reason', value: reason }
-    )
-    .setTimestamp();
-
-  message.channel.send({ embeds: [embed] });
-}
-
-function warningsCommand(message, args) {
-  const member = message.mentions.members.first() || message.member;
-  const guildId = message.guild.id;
-  const userId = member.id;
-  const key = `${guildId}-${userId}`;
-
-  const userWarnings = warnings.get(key) || [];
-
-  if (userWarnings.length === 0) {
-    return message.reply(`✅ ${member.user.tag} has no warnings!`);
-  }
-
-  const warningList = userWarnings
-    .map((w, index) => `**${index + 1}.** ${w.reason}\n   - By: ${w.moderator}\n   - Date: <t:${Math.floor(w.timestamp / 1000)}:R>`)
-    .join('\n\n');
-
-  const embed = new EmbedBuilder()
-    .setColor('#ffaa00')
-    .setTitle(`⚠️ Warnings for ${member.user.tag}`)
-    .setDescription(warningList)
-    .setFooter({ text: `Total: ${userWarnings.length} warning(s)` })
-    .setTimestamp();
-
-  message.channel.send({ embeds: [embed] });
-}
-
-function purgeCommand(message, args) {
-  if (!message.member.permissions.has(PermissionFlagsBits.ManageMessages)) {
-    return message.reply('❌ You don\'t have permission to manage messages!');
-  }
-
-  if (!message.guild.members.me.permissions.has(PermissionFlagsBits.ManageMessages)) {
-    return message.reply('❌ I don\'t have permission to manage messages!');
-  }
-
-  const amount = parseInt(args[0]);
-
-  if (isNaN(amount) || amount < 1 || amount > 100) {
-    return message.reply('❌ Please provide a number between 1 and 100! Example: `/purge 10`');
-  }
-
-  message.channel.bulkDelete(amount + 1, true)
-    .then(messages => {
-      const embed = new EmbedBuilder()
-        .setColor('#00ff00')
-        .setTitle('🗑️ Messages Deleted')
-        .setDescription(`Successfully deleted **${messages.size - 1}** messages!`)
-        .setFooter({ text: `Deleted by ${message.author.tag}` })
-        .setTimestamp();
-
-      message.channel.send({ embeds: [embed] }).then(msg => {
-        setTimeout(() => msg.delete().catch(() => {}), 3000);
-      });
-    })
-    .catch((error) => {
-      console.error(error);
-      message.reply('❌ Failed to delete messages! Note: I can only delete messages less than 14 days old.');
-    });
-}
-
-function slowmodeCommand(message, args) {
-  if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-    return message.reply('❌ You don\'t have permission to manage channels!');
-  }
-
-  if (!message.guild.members.me.permissions.has(PermissionFlagsBits.ManageChannels)) {
-    return message.reply('❌ I don\'t have permission to manage channels!');
-  }
-
-  const seconds = parseInt(args[0]);
-
-  if (isNaN(seconds) || seconds < 0 || seconds > 21600) {
-    return message.reply('❌ Please provide a number between 0 and 21600 seconds (6 hours)! Example: `/slowmode 5`');
-  }
-
-  message.channel.setRateLimitPerUser(seconds)
-    .then(() => {
-      const embed = new EmbedBuilder()
-        .setColor('#00aaff')
-        .setTitle('⏱️ Slowmode Updated')
-        .setDescription(seconds === 0 
-          ? '✅ Slowmode has been disabled!' 
-          : `✅ Slowmode set to **${seconds}** seconds!`)
-        .setFooter({ text: `Set by ${message.author.tag}` })
-        .setTimestamp();
-
-      message.channel.send({ embeds: [embed] });
-    })
-    .catch((error) => {
-      console.error(error);
-      message.reply('❌ Failed to set slowmode!');
-    });
-}
-
-function lockCommand(message, args) {
-  if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-    return message.reply('❌ You don\'t have permission to manage channels!');
-  }
-
-  if (!message.guild.members.me.permissions.has(PermissionFlagsBits.ManageChannels)) {
-    return message.reply('❌ I don\'t have permission to manage channels!');
-  }
-
-  message.channel.permissionOverwrites.edit(message.guild.id, {
-    SendMessages: false,
-  })
-    .then(() => {
-      const embed = new EmbedBuilder()
-        .setColor('#ff0000')
-        .setTitle('🔒 Channel Locked')
-        .setDescription('This channel has been locked. Members can no longer send messages.')
-        .setFooter({ text: `Locked by ${message.author.tag}` })
-        .setTimestamp();
-
-      message.channel.send({ embeds: [embed] });
-    })
-    .catch((error) => {
-      console.error(error);
-      message.reply('❌ Failed to lock the channel!');
-    });
-}
-
-function unlockCommand(message, args) {
-  if (!message.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
-    return message.reply('❌ You don\'t have permission to manage channels!');
-  }
-
-  if (!message.guild.members.me.permissions.has(PermissionFlagsBits.ManageChannels)) {
-    return message.reply('❌ I don\'t have permission to manage channels!');
-  }
-
-  message.channel.permissionOverwrites.edit(message.guild.id, {
-    SendMessages: null,
-  })
-    .then(() => {
-      const embed = new EmbedBuilder()
-        .setColor('#00ff00')
-        .setTitle('🔓 Channel Unlocked')
-        .setDescription('This channel has been unlocked. Members can now send messages.')
-        .setFooter({ text: `Unlocked by ${message.author.tag}` })
-        .setTimestamp();
-
-      message.channel.send({ embeds: [embed] });
-    })
-    .catch((error) => {
-      console.error(error);
-      message.reply('❌ Failed to unlock the channel!');
-    });
-}
-
-function formatDuration(ms) {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 0) return `${days} day(s)`;
-  if (hours > 0) return `${hours} hour(s)`;
-  if (minutes > 0) return `${minutes} minute(s)`;
-  return `${seconds} second(s)`;
-}
+// commands/moderation.js
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 
 module.exports = {
-  kick: kickCommand,
-  ban: banCommand,
-  mute: muteCommand,
-  unmute: unmuteCommand,
-  warn: warnCommand,
-  warnings: warningsCommand,
-  purge: purgeCommand,
-  clear: purgeCommand,
-  slowmode: slowmodeCommand,
-  lock: lockCommand,
-  unlock: unlockCommand,
+  data: new SlashCommandBuilder()
+    .setName('moderation')
+    .setDescription('Moderation commands: kick, ban, mute, unmute, purge, lock, unlock')
+    .addSubcommand(sub =>
+      sub.setName('kick')
+        .setDescription('Kick a member from the server')
+        .addUserOption(opt => opt.setName('target').setDescription('Member to kick').setRequired(true))
+        .addStringOption(opt => opt.setName('reason').setDescription('Reason for the kick')))
+    .addSubcommand(sub =>
+      sub.setName('ban')
+        .setDescription('Ban a member from the server')
+        .addUserOption(opt => opt.setName('target').setDescription('Member to ban').setRequired(true))
+        .addStringOption(opt => opt.setName('reason').setDescription('Reason for the ban')))
+    .addSubcommand(sub =>
+      sub.setName('mute')
+        .setDescription('Mute (timeout) a member')
+        .addUserOption(opt => opt.setName('target').setDescription('Member to mute').setRequired(true))
+        .addIntegerOption(opt => opt.setName('duration').setDescription('Duration in minutes'))
+        .addStringOption(opt => opt.setName('reason').setDescription('Reason for the mute')))
+    .addSubcommand(sub =>
+      sub.setName('unmute')
+        .setDescription('Unmute a member')
+        .addUserOption(opt => opt.setName('target').setDescription('Member to unmute').setRequired(true)))
+    .addSubcommand(sub =>
+      sub.setName('purge')
+        .setDescription('Delete messages in the channel')
+        .addIntegerOption(opt => opt.setName('amount').setDescription('Number of messages to delete').setRequired(true)))
+    .addSubcommand(sub =>
+      sub.setName('lock')
+        .setDescription('Lock the current text channel'))
+    .addSubcommand(sub =>
+      sub.setName('unlock')
+        .setDescription('Unlock the current text channel')),
+
+  async execute(interaction) {
+    const sub = interaction.options.getSubcommand();
+    const { guild, member, channel } = interaction;
+
+    // Kick
+    if (sub === 'kick') {
+      const target = interaction.options.getMember('target');
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+
+      if (!member.permissions.has(PermissionFlagsBits.KickMembers))
+        return interaction.reply({ content: '❌ You don’t have permission to kick members!', ephemeral: true });
+      if (!guild.members.me.permissions.has(PermissionFlagsBits.KickMembers))
+        return interaction.reply({ content: '❌ I don’t have permission to kick members!', ephemeral: true });
+      if (!target.kickable)
+        return interaction.reply({ content: '❌ I cannot kick that member (role hierarchy?)', ephemeral: true });
+
+      await target.kick(reason).catch(err => {
+        console.error(err);
+        return interaction.reply({ content: '❌ Failed to kick the member!', ephemeral: true });
+      });
+
+      const embed = new EmbedBuilder()
+        .setColor('#ff0000')
+        .setTitle('Member Kicked')
+        .addFields(
+          { name: 'User', value: `${target.user.tag}`, inline: true },
+          { name: 'Kicked by', value: `${member.user.tag}`, inline: true },
+          { name: 'Reason', value: reason }
+        )
+        .setTimestamp();
+
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    // Ban
+    if (sub === 'ban') {
+      const target = interaction.options.getMember('target');
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+
+      if (!member.permissions.has(PermissionFlagsBits.BanMembers))
+        return interaction.reply({ content: '❌ You don’t have permission to ban members!', ephemeral: true });
+      if (!guild.members.me.permissions.has(PermissionFlagsBits.BanMembers))
+        return interaction.reply({ content: '❌ I don’t have permission to ban members!', ephemeral: true });
+      if (!target.bannable)
+        return interaction.reply({ content: '❌ I cannot ban that member (role hierarchy?)', ephemeral: true });
+
+      await target.ban({ reason }).catch(err => {
+        console.error(err);
+        return interaction.reply({ content: '❌ Failed to ban the member!', ephemeral: true });
+      });
+
+      const embed = new EmbedBuilder()
+        .setColor('#ff0000')
+        .setTitle('Member Banned')
+        .addFields(
+          { name: 'User', value: `${target.user.tag}`, inline: true },
+          { name: 'Banned by', value: `${member.user.tag}`, inline: true },
+          { name: 'Reason', value: reason }
+        )
+        .setTimestamp();
+
+      return interaction.reply({ embeds: [embed] });
+    }
+
+    // Mute
+    if (sub === 'mute') {
+      const target = interaction.options.getMember('target');
+      const duration = interaction.options.getInteger('duration') || 5;  // default to 5 minutes
+      const reason = interaction.options.getString('reason') || 'No reason provided';
+
+      if (!member.permissions.has(PermissionFlagsBits.ModerateMembers))
+        return interaction.reply({ content: '❌ You don’t have permission to mute members!', ephemeral: true });
+      if (!guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers))
+        return interaction.reply({ content: '❌ I don’t have permission to mute members!', ephemeral: true });
+      if (!target.moderatable)
+        return interaction.reply({ content: '❌ I cannot mute that member!', ephemeral: true });
+
+      await target.timeout(duration * 60 * 1000, reason).catch(err => {
+        console.error(err);
+        return interaction.reply({ content: '❌ Failed to mute the member!', ephemeral: true });
+      });
+
+      return interaction.reply({ content: `✅ ${target.user.tag} has been muted for ${duration} minutes (Reason: ${reason}).` });
+    }
+
+    // Unmute
+    if (sub === 'unmute') {
+      const target = interaction.options.getMember('target');
+
+      if (!member.permissions.has(PermissionFlagsBits.ModerateMembers))
+        return interaction.reply({ content: '❌ You don’t have permission to unmute members!', ephemeral: true });
+      if (!guild.members.me.permissions.has(PermissionFlagsBits.ModerateMembers))
+        return interaction.reply({ content: '❌ I don’t have permission to unmute members!', ephemeral: true });
+
+      await target.timeout(null).catch(err => {
+        console.error(err);
+        return interaction.reply({ content: '❌ Failed to unmute the member!', ephemeral: true });
+      });
+
+      return interaction.reply({ content: `✅ ${target.user.tag} has been unmuted.` });
+    }
+
+    // Purge
+    if (sub === 'purge') {
+      const amount = interaction.options.getInteger('amount');
+
+      if (!member.permissions.has(PermissionFlagsBits.ManageMessages))
+        return interaction.reply({ content: '❌ You don’t have permission to manage messages!', ephemeral: true });
+      if (!guild.members.me.permissions.has(PermissionFlagsBits.ManageMessages))
+        return interaction.reply({ content: '❌ I don’t have permission to manage messages!', ephemeral: true });
+
+      const deleted = await channel.bulkDelete(amount, true).catch(err => {
+        console.error(err);
+        return interaction.reply({ content: '❌ Failed to delete messages!', ephemeral: true });
+      });
+
+      return interaction.reply({ content: `✅ Deleted ${deleted.size} message(s).`, ephemeral: true });
+    }
+
+    // Lock
+    if (sub === 'lock') {
+      if (!member.permissions.has(PermissionFlagsBits.ManageChannels))
+        return interaction.reply({ content: '❌ You don’t have permission to manage channels!', ephemeral: true });
+      if (!channel.permissionsFor(guild.members.me).has(PermissionFlagsBits.ManageChannels))
+        return interaction.reply({ content: '❌ I don’t have permission to manage this channel!', ephemeral: true });
+
+      await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false }).catch(err => {
+        console.error(err);
+        return interaction.reply({ content: '❌ Failed to lock the channel!', ephemeral: true });
+      });
+
+      return interaction.reply({ content: '🔒 This channel has been locked.' });
+    }
+
+    // Unlock
+    if (sub === 'unlock') {
+      if (!member.permissions.has(PermissionFlagsBits.ManageChannels))
+        return interaction.reply({ content: '❌ You don’t have permission to manage channels!', ephemeral: true });
+      if (!channel.permissionsFor(guild.members.me).has(PermissionFlagsBits.ManageChannels))
+        return interaction.reply({ content: '❌ I don’t have permission to manage this channel!', ephemeral: true });
+
+      await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: null }).catch(err => {
+        console.error(err);
+        return interaction.reply({ content: '❌ Failed to unlock the channel!', ephemeral: true });
+      });
+
+      return interaction.reply({ content: '🔓 This channel has been unlocked.' });
+    }
+
+    // If we somehow get here
+    return interaction.reply({ content: '❌ Unknown moderation operation!', ephemeral: true });
+  }
 };
