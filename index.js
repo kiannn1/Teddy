@@ -15,6 +15,7 @@ const client = new Client({
 const PREFIX = ['/', '!t'];
 const musicCommands = require('./commands/music');
 const moderationCommands = require('./commands/moderation');
+const funCommands = require('./commands/fun');
 const helpCommand = require('./commands/help');
 
 const queue = new Map();
@@ -46,6 +47,8 @@ client.on('messageCreate', async (message) => {
       await musicCommands[commandName](message, args, queue, client);
     } else if (moderationCommands[commandName]) {
       await moderationCommands[commandName](message, args);
+    } else if (funCommands[commandName]) {
+      await funCommands[commandName](message, args);
     } else if (commandName === 'help') {
       await helpCommand(message, usedPrefix);
     }
