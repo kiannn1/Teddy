@@ -1,7 +1,7 @@
 
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const play = require('play-dl');
-const { getData } = require('spotify-url-info');
+const spotifyUrlInfo = require('spotify-url-info');
 const { EmbedBuilder } = require('discord.js');
 
 const players = new Map();
@@ -36,6 +36,7 @@ async function playCommand(message, args, queue) {
     if (isSpotify) {
       // Handle Spotify URL
       console.log('Fetching Spotify track info for URL:', url);
+      const getData = spotifyUrlInfo.default;
       const spotifyData = await getData(url);
       
       // Search for the song on YouTube
@@ -51,9 +52,9 @@ async function playCommand(message, args, queue) {
       song = {
         title: spotifyData.name,
         url: video.url,
-        duration: Math.floor(spotifyData.duration / 1000) || 0,
+        duration: Math.floor(spotifyData.duration_ms / 1000) || 0,
         requester: message.author.tag,
-        thumbnail: spotifyData.coverArt?.sources?.[0]?.url || null,
+        thumbnail: spotifyData.album?.images?.[0]?.url || null,
       };
     } else {
       // Handle YouTube URL
