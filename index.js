@@ -1,4 +1,3 @@
-
 const { Client, GatewayIntentBits, EmbedBuilder, PermissionFlagsBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const play = require('play-dl');
@@ -34,7 +33,7 @@ const commands = [
   // Moderation commands
   { name: 'kick', description: 'Kick a member', options: [{ name: 'user', description: 'User to kick', type: 6, required: true }, { name: 'reason', description: 'Reason for kick', type: 3 }] },
   { name: 'ban', description: 'Ban a member', options: [{ name: 'user', description: 'User to ban', type: 6, required: true }, { name: 'reason', description: 'Reason for ban', type: 3 }] },
-  { name: 'mute', description: 'Mute a member', options: [{ name: 'user', description: 'User to mute', type: 6, required: true }, { name: 'duration', description: 'Duration (e.g., 10m, 1h)', type: 3, required: true }, { name: 'reason', description: 'Reason for mute', type: 3 }] },
+  { name: 'mute', description: 'Mute a member', options: [{ name: 'user', description: 'User to mute', type: 6, required: true }, { name: 'duration', description: 'Duration (e.g., 10m, 1h)', type: 3 }, { name: 'reason', description: 'Reason', type: 3 }] },
   { name: 'unmute', description: 'Unmute a member', options: [{ name: 'user', description: 'User to unmute', type: 6, required: true }] },
   { name: 'warn', description: 'Warn a member', options: [{ name: 'user', description: 'User to warn', type: 6, required: true }, { name: 'reason', description: 'Reason for warning', type: 3, required: true }] },
   { name: 'warnings', description: 'View warnings for a member', options: [{ name: 'user', description: 'User to check', type: 6, required: true }] },
@@ -85,7 +84,7 @@ client.on('interactionCreate', async (interaction) => {
 
   const { commandName } = interaction;
 
-  // Convert interaction to message-like object for compatibility
+  // Create fake message-like object, using Map for mentions for slash commands
   const fakeMessage = {
     member: interaction.member,
     guild: interaction.guild,
@@ -99,31 +98,34 @@ client.on('interactionCreate', async (interaction) => {
       users: new Map(),
       members: new Map(),
     },
+    createdTimestamp: Date.now(),
   };
 
-  // Parse options into args array
+  // Parse interaction options into args array and mentions maps
   const args = [];
-  
-  // Handle URL first for music commands
+
+  // Music commands: url
   if (interaction.options.get('url')) {
     args.push(interaction.options.get('url').value);
   }
-  
-  // Handle user mentions
+
+  // User mention (used in moderation, avatar, userinfo)
   if (interaction.options.get('user')) {
-    fakeMessage.mentions.users.set(interaction.options.get('user').value, interaction.options.getUser('user'));
-    fakeMessage.mentions.members.set(interaction.options.get('user').value, interaction.options.getMember('user'));
+    const userObj = interaction.options.getUser('user');
+    const memberObj = interaction.options.getMember('user');
+    if (userObj) fakeMessage.mentions.users.set(userObj.id, userObj);
+    if (memberObj) fakeMessage.mentions.members.set(memberObj.id, memberObj);
   }
-  
-  // Handle other options
+
+  // Other options into args
   if (interaction.options.get('reason')) args.push(interaction.options.get('reason').value);
   if (interaction.options.get('duration')) args.push(interaction.options.get('duration').value);
   if (interaction.options.get('amount')) args.push(interaction.options.get('amount').value.toString());
   if (interaction.options.get('sides')) args.push(interaction.options.get('sides').value.toString());
   if (interaction.options.get('question')) args.push(interaction.options.get('question').value);
   if (interaction.options.get('message')) args.push(interaction.options.get('message').value);
-  
-  // Handle say command special options
+
+  // Say command special: channel and anonymous
   if (interaction.options.get('channel')) {
     const channel = interaction.options.getChannel('channel');
     args.unshift(`<#${channel.id}>`);
