@@ -15,8 +15,7 @@ function helpCommand(message, prefix) {
           '`/resume` - Resume the paused song\n' +
           '`/stop` - Stop playing and clear queue\n' +
           '`/skip` - Skip to the next song\n' +
-          '`/queue` - Show the music queue\n' +
-          '`/clear` - Clear the music queue',
+          '`/queue` - Show the music queue',
         inline: false
       },
       {
@@ -44,7 +43,8 @@ function helpCommand(message, prefix) {
           '`/meme` - Get a random meme\n' +
           '`/avatar [user]` - Show user\'s avatar\n' +
           '`/userinfo [user]` - Show user info\n' +
-          '`/serverinfo` - Show server info',
+          '`/serverinfo` - Show server info\n' +
+          '`/ping` - Check bot latency',
         inline: false
       },
       {
