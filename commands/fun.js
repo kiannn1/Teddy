@@ -16,7 +16,7 @@ const eightBallResponses = [
   '🎱 Better not tell you now.',
   '🎱 Cannot predict now.',
   '🎱 Concentrate and ask again.',
-  '🎱 Don\'t count on it.',
+  "🎱 Don't count on it.",
   '🎱 My reply is no.',
   '🎱 My sources say no.',
   '🎱 Outlook not so good.',
@@ -25,13 +25,13 @@ const eightBallResponses = [
 
 const jokes = [
   'Why do programmers prefer dark mode? Because light attracts bugs! 🐛',
-  'How many programmers does it take to change a light bulb? None, that\'s a hardware problem! 💡',
+  "How many programmers does it take to change a light bulb? None, that's a hardware problem! 💡",
   'Why did the developer go broke? Because he used up all his cache! 💰',
   'What do you call a programmer from Finland? Nerdic! 🇫🇮',
-  'Why do Java developers wear glasses? Because they don\'t C#! 👓',
+  "Why do Java developers wear glasses? Because they don't C#! 👓",
   'A SQL query walks into a bar, walks up to two tables and asks... "Can I join you?" 🍺',
-  'What\'s a pirate\'s favorite programming language? You\'d think it\'s R, but it\'s actually the C! 🏴‍☠️',
-  'Why was the JavaScript developer sad? Because he didn\'t Node how to Express himself! 😢',
+  "What's a pirate's favorite programming language? You'd think it's R, but it's actually the C! 🏴‍☠️",
+  "Why was the JavaScript developer sad? Because he didn't Node how to Express himself! 😢",
 ];
 
 function eightBallCommand(message, args) {
@@ -56,7 +56,7 @@ function eightBallCommand(message, args) {
 
 function diceCommand(message, args) {
   const sides = args[0] ? parseInt(args[0]) : 6;
-  
+
   if (isNaN(sides) || sides < 2 || sides > 100) {
     return message.reply('❌ Please provide a valid number of sides (2-100)! Example: `/dice 20`');
   }
@@ -98,7 +98,8 @@ function jokeCommand(message, args) {
 }
 
 function avatarCommand(message, args) {
-  const user = message.mentions.users.first() || message.author;
+  // Fix for slash command Map: get first user or author
+  const user = Array.from(message.mentions?.users?.values() || [])[0] || message.author;
   const avatarURL = user.displayAvatarURL({ dynamic: true, size: 1024 });
 
   const embed = new EmbedBuilder()
@@ -124,7 +125,7 @@ function serverinfoCommand(message, args) {
       { name: '📝 Channels', value: `${guild.channels.cache.size}`, inline: true },
       { name: '😀 Emojis', value: `${guild.emojis.cache.size}`, inline: true },
       { name: '🎭 Roles', value: `${guild.roles.cache.size}`, inline: true },
-      { name: '🆔 Server ID', value: guild.id, inline: false }
+      { name: 'Ⓜ️ Server ID', value: guild.id, inline: false }
     )
     .setFooter({ text: `Requested by ${message.author.tag}` })
     .setTimestamp();
@@ -133,8 +134,8 @@ function serverinfoCommand(message, args) {
 }
 
 async function userinfoCommand(message, args) {
-  const user = message.mentions.users.first() || message.author;
-  let member = message.mentions.members.first() || message.member;
+  const user = Array.from(message.mentions?.users?.values() || [])[0] || message.author;
+  let member = Array.from(message.mentions?.members?.values() || [])[0] || message.member;
 
   if (!member || member.user.id !== user.id) {
     try {
@@ -155,7 +156,7 @@ async function userinfoCommand(message, args) {
     .setTitle(`👤 ${user.tag}`)
     .setThumbnail(user.displayAvatarURL({ dynamic: true }))
     .addFields(
-      { name: '🆔 User ID', value: user.id, inline: true },
+      { name: 'Ⓜ️ User ID', value: user.id, inline: true },
       { name: '📅 Account Created', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`, inline: true },
       { name: '📥 Joined Server', value: `<t:${Math.floor(member.joinedTimestamp / 1000)}:R>`, inline: true },
       { name: '🎭 Roles', value: roles.length ? roles.join(', ') : 'None', inline: false }
@@ -233,7 +234,7 @@ async function sayCommand(message, args) {
     } else if (arg.startsWith('<#') && arg.endsWith('>')) {
       const channelId = arg.slice(2, -1);
       const channel = message.guild.channels.cache.get(channelId);
-      
+
       if (!channel) {
         return message.reply('❌ Invalid channel! Please mention a valid channel.');
       }
@@ -243,7 +244,7 @@ async function sayCommand(message, args) {
       }
 
       if (!channel.permissionsFor(message.guild.members.me).has(PermissionFlagsBits.SendMessages)) {
-        return message.reply('❌ I don\'t have permission to send messages in that channel!');
+        return message.reply("❌ I don't have permission to send messages in that channel!");
       }
 
       targetChannel = channel;
@@ -270,7 +271,7 @@ async function sayCommand(message, args) {
         .setTimestamp();
 
       await targetChannel.send({ embeds: [embed] });
-      
+
       if (targetChannel.id !== message.channel.id) {
         await message.reply({ content: `✅ Message sent to ${targetChannel}!`, ephemeral: true });
       }
