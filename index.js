@@ -104,22 +104,31 @@ client.on('interactionCreate', async (interaction) => {
   // Parse options into args array
   const args = [];
   
-  if (interaction.options.get('url')) args.push(interaction.options.get('url').value);
+  // Handle URL first for music commands
+  if (interaction.options.get('url')) {
+    args.push(interaction.options.get('url').value);
+  }
+  
+  // Handle user mentions
   if (interaction.options.get('user')) {
     fakeMessage.mentions.users.set(interaction.options.get('user').value, interaction.options.getUser('user'));
     fakeMessage.mentions.members.set(interaction.options.get('user').value, interaction.options.getMember('user'));
   }
+  
+  // Handle other options
   if (interaction.options.get('reason')) args.push(interaction.options.get('reason').value);
   if (interaction.options.get('duration')) args.push(interaction.options.get('duration').value);
   if (interaction.options.get('amount')) args.push(interaction.options.get('amount').value.toString());
   if (interaction.options.get('sides')) args.push(interaction.options.get('sides').value.toString());
   if (interaction.options.get('question')) args.push(interaction.options.get('question').value);
   if (interaction.options.get('message')) args.push(interaction.options.get('message').value);
-  if (interaction.options.get('anonymous')) args.unshift('anon');
+  
+  // Handle say command special options
   if (interaction.options.get('channel')) {
     const channel = interaction.options.getChannel('channel');
     args.unshift(`<#${channel.id}>`);
   }
+  if (interaction.options.get('anonymous')) args.unshift('anon');
 
   try {
     if (musicCommands[commandName]) {

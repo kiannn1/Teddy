@@ -17,6 +17,10 @@ async function playCommand(message, args, queue) {
 
   const url = args[0];
 
+  if (!url) {
+    return message.reply('❌ Please provide a YouTube URL! Example: `/play https://youtube.com/watch?v=...`');
+  }
+
   if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
     return message.reply('❌ Please provide a valid YouTube URL!');
   }
@@ -24,6 +28,7 @@ async function playCommand(message, args, queue) {
   try {
     const serverQueue = queue.get(message.guild.id);
     
+    console.log('Fetching video info for URL:', url);
     const info = await play.video_info(url);
     const song = {
       title: info.video_details.title,
@@ -126,6 +131,11 @@ async function playSong(guild, song, queue) {
   }
 
   try {
+    if (!song.url) {
+      throw new Error('Song URL is undefined');
+    }
+    
+    console.log('Attempting to stream URL:', song.url);
     const stream = await play.stream(song.url);
     const resource = createAudioResource(stream.stream, {
       inputType: stream.type,
