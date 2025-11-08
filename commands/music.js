@@ -1,63 +1,98 @@
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState } = require('@discordjs/voice');
 const play = require('play-dl');
 const { getTrack } = require('spotify-url-info');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ChannelType } = require('discord.js');
 
 const players = new Map();
+const connections = new Map();
+const volumes = new Map();
 
-async function playCommand(message, args, queue) {
+async function joinCommand(message, args, queue, client) {
   const voiceChannel = message.member.voice.channel;
+  if (!voiceChannel)
+    return message.reply('❌ You must be in a voice channel to use `/join`.');
+
+  try {
+    const connection = joinVoiceChannel({
+      channelId: voiceChannel.id,
+      guildId: message.guild.id,
+      adapterCreator: message.guild.voiceAdapterCreator,
+    });
+    connections.set(message.guild.id, connection);
+    await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
+    message.reply(`✅ Joined ${voiceChannel.name}!`);
+  } catch (err) {
+    console.error(err);
+    message.reply('❌ Unable to join your voice channel.');
+  }
+}
+
+async function leaveCommand(message, args, queue, client) {
+  const connection = connections.get(message.guild.id) || null;
+  if (connection) {
+    connection.destroy();
+    connections.delete(message.guild.id);
+    queue.delete(message.guild.id);
+    message.reply('👋 Disconnected from voice channel!');
+  } else {
+    message.reply('❌ I am not in a voice channel.');
+  }
+}
+
+async function playCommand(message, args, queue, client) {
+  const voiceChannel = message.member.voice.channel;
+
   if (!voiceChannel) {
     return message.reply('❌ You need to be in a voice channel to play music!');
   }
   if (!args.length) {
-    return message.reply('❌ Please provide a YouTube or Spotify URL! Example: `/play https://youtube.com/watch?v=...` or `/play https://open.spotify.com/track/...`');
+    return message.reply('❌ Provide a YouTube or Spotify link! e.g. `/play https://youtube.com/watch?v=...` or `/play https://open.spotify.com/track/...`');
   }
+
   const url = args[0];
-  if (!url) {
-    return message.reply('❌ Please provide a YouTube or Spotify URL!');
-  }
   const isYouTube = url.includes('youtube.com') || url.includes('youtu.be');
-  const isSpotify = url.includes('spotify.com');
+  const isSpotify = url.includes('spotify.com/track/');
+
   if (!isYouTube && !isSpotify) {
-    return message.reply('❌ Please provide a valid YouTube or Spotify URL!');
+    return message.reply('❌ The /play command only supports YouTube and Spotify track URLs.');
   }
+
   try {
     const serverQueue = queue.get(message.guild.id);
     let song;
+
     if (isSpotify) {
       try {
         const spotifyData = await getTrack(url);
         const searchQuery = `${spotifyData.name} ${spotifyData.artists.map(a => a.name).join(' ')}`;
-        const searched = await play.search(searchQuery, { limit: 1 });
-        if (!searched || searched.length === 0) {
-          return message.reply('❌ Could not find this song on YouTube!');
-        }
-        const video = searched[0];
+        const results = await play.search(searchQuery, { limit: 1 });
+        if (!results.length) return message.reply('❌ Could not find this song on YouTube!');
+        const video = results[0];
         song = {
           title: spotifyData.name,
           url: video.url,
-          duration: Math.floor(spotifyData.duration_ms / 1000) || 0,
+          duration: Math.floor(spotifyData.duration_ms / 1000),
           requester: message.author.tag,
-          thumbnail: spotifyData.album.images[0]?.url || null,
+          thumbnail: spotifyData.album.images[0]?.url ?? null,
         };
       } catch (err) {
-        return message.reply('❌ Failed to fetch or match a Spotify track!');
+        return message.reply('❌ Failed to fetch or match that Spotify track!');
       }
-    } else {
-      const validated = await play.validate(url);
-      if (!validated || validated === 'search') {
-        return message.reply('❌ Invalid YouTube URL!');
-      }
+    } else if (isYouTube) {
+      const valid = await play.validate(url);
+      if (!valid || valid === 'search')
+        return message.reply('❌ Invalid YouTube link.');
+
       const info = await play.video_info(url);
       song = {
         title: info.video_details.title,
         url: info.video_details.url,
         duration: info.video_details.durationInSec,
         requester: message.author.tag,
-        thumbnail: info.video_details.thumbnails?.[0]?.url || null,
+        thumbnail: info.video_details.thumbnails?.[0]?.url ?? null,
       };
     }
+
     if (!serverQueue) {
       const queueContruct = {
         textChannel: message.channel,
@@ -71,11 +106,13 @@ async function playCommand(message, args, queue) {
       queueContruct.songs.push(song);
 
       try {
-        const connection = joinVoiceChannel({
-          channelId: voiceChannel.id,
-          guildId: message.guild.id,
-          adapterCreator: message.guild.voiceAdapterCreator,
-        });
+        const connection =
+          connections.get(message.guild.id) ||
+          joinVoiceChannel({
+            channelId: voiceChannel.id,
+            guildId: message.guild.id,
+            adapterCreator: message.guild.voiceAdapterCreator,
+          });
         queueContruct.connection = connection;
 
         connection.subscribe(queueContruct.player);
@@ -132,20 +169,22 @@ async function playSong(guild, song, queue) {
     return;
   }
   try {
-    // Robust error handling for invalid url
     if (!song.url || typeof song.url !== "string" || !/^https?:\/\//.test(song.url)) {
       throw new Error('Song URL is undefined or invalid');
     }
-    let stream;
+
     if (play.is_expired()) await play.refreshToken();
-    stream = await play.stream(song.url);
+    const stream = await play.stream(song.url);
 
     const resource = createAudioResource(stream.stream, {
       inputType: stream.type,
       inlineVolume: true,
     });
 
-    resource.volume.setVolume(0.5);
+    // Use server-configured volume, default to 50%
+    const vol = volumes.get(guild.id) ?? 0.5;
+    resource.volume.setVolume(vol);
+
     serverQueue.player.play(resource);
 
     const embed = new EmbedBuilder()
@@ -167,6 +206,55 @@ async function playSong(guild, song, queue) {
       if (serverQueue.connection) serverQueue.connection.destroy();
       queue.delete(guild.id);
     }
+  }
+}
+
+// /tts <text> [#channel]
+async function ttsCommand(message, args, queue, client) {
+  if (!args.length) return message.reply('❌ Please provide text for the bot to speak!');
+
+  // Check if last arg is a channel mention format
+  let text = args.join(' ');
+  let targetChannel = message.channel;
+
+  // Allow specifying a channel: /tts <text> <#channel>
+  const lastArg = args[args.length - 1];
+  const channelMentionMatch = lastArg.match(/^<#(\d+)>$/);
+  if (channelMentionMatch) {
+    const channelId = channelMentionMatch[1];
+    const channelObj = message.guild.channels.cache.get(channelId);
+    if (channelObj && channelObj.type === ChannelType.GuildText) {
+      targetChannel = channelObj;
+      args.pop();
+      text = args.join(' ');
+    } else {
+      return message.reply('❌ Invalid or non-text channel specified!');
+    }
+  }
+
+  targetChannel.send({ content: text, tts: true })
+    .then(() => message.reply(`✅ Sent TTS message${targetChannel.id!==message.channel.id ? ` in ${targetChannel}` : ""}!`))
+    .catch(err => {
+      console.error(err);
+      message.reply('❌ Failed to send TTS message.');
+    });
+}
+
+function volumeCommand(message, args, queue) {
+  const serverQueue = queue.get(message.guild.id);
+  if (!serverQueue || !serverQueue.player) return message.reply('❌ No music player active.');
+  const vol = args.length ? Number(args[0]) : undefined;
+  if (vol === undefined || isNaN(vol) || vol < 0 || vol > 1) {
+    return message.reply('❌ Please set a volume between 0.0 and 1.0 (e.g., `/volume 0.5`)');
+  }
+  volumes.set(message.guild.id, vol);
+  try {
+    if (serverQueue.player.state.status === AudioPlayerStatus.Playing) {
+      serverQueue.player._state.resource.volume.setVolume(vol);
+    }
+    message.reply(`🔊 Volume set to ${Math.round(vol * 100)}%`);
+  } catch (err) {
+    message.reply('❌ Failed to set volume.');
   }
 }
 
@@ -244,6 +332,8 @@ function formatDuration(seconds) {
 }
 
 module.exports = {
+  join: joinCommand,
+  leave: leaveCommand,
   play: playCommand,
   pause: pauseCommand,
   resume: resumeCommand,
@@ -251,4 +341,6 @@ module.exports = {
   skip: skipCommand,
   queue: queueCommand,
   clear: clearCommand,
+  tts: ttsCommand,
+  volume: volumeCommand,
 };
