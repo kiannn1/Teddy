@@ -29,10 +29,6 @@ const commands = [
   { name: 'skip', description: 'Skip the current song' },
   { name: 'queue', description: 'Show the music queue' },
   { name: 'clear', description: 'Clear the music queue' },
-  { name: 'join', description: 'Join the voice channel' },
-  { name: 'leave', description: 'Leave the voice channel' },
-  { name: 'tts', description: 'Make the bot speak text', options: [{ name: 'text', description: 'Text to speak', type: 3, required: true }] },
-  { name: 'volume', description: 'Set the volume (0.0 to 1.0)', options: [{ name: 'volume', description: 'Volume level', type: 10, required: true }] }
   
   // Moderation commands
   { name: 'kick', description: 'Kick a member', options: [{ name: 'user', description: 'User to kick', type: 6, required: true }, { name: 'reason', description: 'Reason for kick', type: 3 }] },
